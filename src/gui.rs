@@ -322,40 +322,167 @@ impl Application for State {
         Command::none()
     }
 
-    fn view(&self) -> iced::Element<'_, Self::Message> {
-        let installation_label = Text::new("Installation:").width(140.into());
-        let installation_client = Radio::new(
-            Installation::Client,
-            "Client",
-            Some(self.installation_type),
-            Interaction::SelectInstallation,
-        );
-        let installation_server = Radio::new(
-            Installation::Server,
-            "Server",
-            Some(self.installation_type),
-            Interaction::SelectInstallation,
-        );
-        let installation_row = Row::new()
-            .push(installation_label)
-            .push(installation_client)
-            .push(installation_server)
-            .width(Length::Fill)
-            .align_items(Alignment::Fill)
-            .spacing(50)
-            .padding(5);
-
-        let minecraft_version_label = Text::new("Minecraft version:").width(140.into());
-        let minecraft_version_list = PickList::new(
-            Cow::from_iter(
-                self.minecraft_versions
-                    .iter()
-                    .filter(|v| self.show_snapshots || v.stable)
-                    .cloned(),
-            ),
-            self.selected_minecraft_version.clone(),
-            Interaction::SelectMcVersion,
+    fn view(&self) -> Element<'_, Self::Message> {
+        Element::<Interaction>::from(
+            Column::new()
+                .padding(5)
+                .spacing(5)
+                .push(
+                    Row::new()
+                        .push(Text::new("Installation:").width(140.into()))
+                        .push(Radio::new(
+                            Installation::Client,
+                            "Client",
+                            Some(self.installation_type),
+                            Interaction::SelectInstallation,
+                        ))
+                        .push(Radio::new(
+                            Installation::Server,
+                            "Server",
+                            Some(self.installation_type),
+                            Interaction::SelectInstallation,
+                        ))
+                        .width(Length::Fill)
+                        .align_items(Alignment::Fill)
+                        .spacing(50)
+                        .padding(5),
+                )
+                .push(
+                    Row::new()
+                        .push(Text::new("Minecraft version:").width(140.into()))
+                        .push(
+                            PickList::new(
+                                Cow::from_iter(
+                                    self.minecraft_versions
+                                        .iter()
+                                        .filter(|v| self.show_snapshots || v.stable)
+                                        .cloned(),
+                                ),
+                                self.selected_minecraft_version.clone(),
+                                Interaction::SelectMcVersion,
+                            )
+                            .width(200.into()),
+                        )
+                        .push(Space::new(20.into(), 0.into()))
+                        .push(Checkbox::new(
+                            self.show_snapshots,
+                            "Show snapshots",
+                            Interaction::ToggleSnapshots,
+                        ))
+                        .width(Length::Fill)
+                        .align_items(Alignment::Center)
+                        .spacing(5)
+                        .padding(5),
+                )
+                .push(
+                    Row::new()
+                        .push(Text::new("Loader version:").width(140.into()))
+                        .push(
+                            PickList::new(
+                                Cow::from_iter(
+                                    self.loader_versions
+                                        .iter()
+                                        .filter(|v| self.show_betas || !v.version.contains("beta"))
+                                        .cloned(),
+                                ),
+                                self.selected_loader_version.clone(),
+                                Interaction::SelectLoaderVersion,
+                            )
+                            .width(200.into()),
+                        )
+                        .push(Space::new(20.into(), 0.into()))
+                        .push(Checkbox::new(
+                            self.show_betas,
+                            "Show betas",
+                            Interaction::ToggleBetas,
+                        ))
+                        .width(Length::Fill)
+                        .align_items(Alignment::Center)
+                        .spacing(5)
+                        .padding(5),
+                )
+                .push(Rule::horizontal(5))
+                .push(match self.installation_type {
+                    Installation::Client => Row::new()
+                        .push(Text::new("Directory:").width(140.into()))
+                        .push(
+                            TextInput::new(
+                                "Install location",
+                                self.client_location.to_str().unwrap(),
+                                |s| Interaction::ChangeClientLocation(PathBuf::from(s)),
+                            )
+                            .padding(5),
+                        )
+                        .push(
+                            Button::new(Text::new("Browse"))
+                                .on_press(Interaction::BrowseClientLocation),
+                        )
+                        .width(Length::Fill)
+                        .align_items(Alignment::Center)
+                        .spacing(5)
+                        .padding(5),
+                    Installation::Server => Row::new()
+                        .push(Text::new("Directory:").width(140.into()))
+                        .push(
+                            TextInput::new(
+                                "Install location",
+                                self.server_location.to_str().unwrap(),
+                                |s| Interaction::ChangeServerLocation(PathBuf::from(s)),
+                            )
+                            .padding(5),
+                        )
+                        .push(
+                            Button::new(Text::new("Browse"))
+                                .on_press(Interaction::BrowseServerLocation),
+                        )
+                        .width(Length::Fill)
+                        .align_items(Alignment::Center)
+                        .spacing(5)
+                        .padding(5),
+                })
+                .push(match self.installation_type {
+                    Installation::Client => Row::new()
+                        .push(Text::new("Options:").width(140.into()))
+                        .push(Checkbox::new(
+                            self.generate_profile,
+                            "Generate profile",
+                            Interaction::GenerateProfile,
+                        ))
+                        .align_items(Alignment::Center)
+                        .spacing(5)
+                        .padding(5),
+                    Installation::Server => Row::new()
+                        .push(Text::new("Options:").width(140.into()))
+                        .push(Checkbox::new(
+                            self.download_server_jar,
+                            "Download server jar",
+                            Interaction::DownloadServerJar,
+                        ))
+                        .push(Space::new(35.into(), 0.into()))
+                        .push(Checkbox::new(
+                            self.generate_launch_script,
+                            "Generate launch script",
+                            Interaction::GenerateLaunchScript,
+                        ))
+                        .align_items(Alignment::Center)
+                        .spacing(5)
+                        .padding(5),
+                })
+                .push({
+                    let mut button = Button::new(
+                        Text::new("Install")
+                            .horizontal_alignment(Horizontal::Center)
+                            .width(Length::Fill),
+                    )
+                    .width(Length::Fill);
+                    if !self.is_installing {
+                        button = button.on_press(Interaction::Install);
+                    }
+                    button
+                })
+                .push(ProgressBar::new(0.0..=1.0, self.progress)),
         )
+<<<<<<< Updated upstream
         .width(200.into());
         let enable_snapshots = Checkbox::new(
             self.show_snapshots,
@@ -493,5 +620,8 @@ impl Application for State {
 
         let content: Element<Interaction> = column.into();
         content.map(Message::Interaction)
+=======
+        .map(Message::Interaction)
+>>>>>>> Stashed changes
     }
 }
