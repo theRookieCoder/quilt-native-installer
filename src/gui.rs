@@ -47,12 +47,12 @@ fn create_icon() -> Result<Icon> {
 
 #[derive(Debug, Default)]
 struct State {
-    // MC version picker
+    // Minecraft version picker
     minecraft_versions: Vec<MinecraftVersion>,
     selected_minecraft_version: Option<MinecraftVersion>,
     show_snapshots: bool,
 
-    // Quilt loader version picker
+    // Quilt Loader version picker
     loader_versions: Vec<LoaderVersion>,
     selected_loader_version: Option<LoaderVersion>,
     show_betas: bool,
@@ -93,8 +93,8 @@ enum Interaction {
     SelectInstallation(Installation),
     SelectLoaderVersion(LoaderVersion),
     SelectMcVersion(MinecraftVersion),
-    ToggleSnapshots(bool),
-    ToggleBetas(bool),
+    SetShowSnapshots(bool),
+    SetShowBetas(bool),
     GenerateLaunchScript(bool),
     GenerateProfile(bool),
     ChangeServerLocation(PathBuf),
@@ -158,14 +158,7 @@ impl Application for State {
     }
 
     fn title(&self) -> String {
-        format!(
-            "Quilt Installer{}",
-            if self.is_installing {
-                " - Installing"
-            } else {
-                ""
-            }
-        )
+        "Quilt Installer".into()
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
@@ -177,7 +170,7 @@ impl Application for State {
                 Interaction::SelectInstallation(i) => self.installation_type = i,
                 Interaction::SelectLoaderVersion(v) => self.selected_loader_version = Some(v),
                 Interaction::SelectMcVersion(v) => self.selected_minecraft_version = Some(v),
-                Interaction::ToggleSnapshots(enable) => {
+                Interaction::SetShowSnapshots(enable) => {
                     self.show_snapshots = enable;
                     self.selected_minecraft_version = self
                         .minecraft_versions
@@ -185,12 +178,12 @@ impl Application for State {
                         .find(|v| enable || v.stable)
                         .cloned();
                 }
-                Interaction::ToggleBetas(enable) => {
+                Interaction::SetShowBetas(enable) => {
                     self.show_betas = enable;
                     self.selected_loader_version = self
                         .loader_versions
                         .iter()
-                        .find(|v| enable || !v.version.pre.contains("beta"))
+                        .find(|v| enable || v.version.pre.is_empty())
                         .cloned();
                 }
                 Interaction::GenerateLaunchScript(value) => self.generate_launch_script = value,
@@ -218,7 +211,7 @@ impl Application for State {
                     self.selected_loader_version = self
                         .loader_versions
                         .iter()
-                        .find(|v| !v.version.pre.contains("beta"))
+                        .find(|v| v.version.pre.is_empty())
                         .cloned();
                 }
             }
@@ -367,7 +360,7 @@ impl Application for State {
                         .push(Checkbox::new(
                             self.show_snapshots,
                             "Show snapshots",
-                            Interaction::ToggleSnapshots,
+                            Interaction::SetShowSnapshots,
                         ))
                         .width(Length::Fill)
                         .align_items(Alignment::Center)
@@ -382,7 +375,7 @@ impl Application for State {
                                 Cow::from_iter(
                                     self.loader_versions
                                         .iter()
-                                        .filter(|v| self.show_betas || !v.version.pre.contains("beta"))
+                                        .filter(|v| self.show_betas || v.version.pre.is_empty())
                                         .cloned(),
                                 ),
                                 self.selected_loader_version.clone(),
@@ -394,7 +387,7 @@ impl Application for State {
                         .push(Checkbox::new(
                             self.show_betas,
                             "Show betas",
-                            Interaction::ToggleBetas,
+                            Interaction::SetShowBetas,
                         ))
                         .width(Length::Fill)
                         .align_items(Alignment::Center)
