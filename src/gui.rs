@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
-use crate::installer;
 use anyhow::{anyhow, Error, Result};
 use iced::widget::{Radio, Space};
 use iced::window::{Icon, Settings as WindowSettings};
@@ -18,8 +17,9 @@ use png::Transformations;
 use reqwest::Client;
 
 use crate::installer::{
-    fetch_loader_versions, fetch_minecraft_versions, install_client, install_server,
-    ClientInstallation, Installation, LoaderVersion, MinecraftVersion, ServerInstallation,
+    fetch_loader_versions, fetch_minecraft_versions, get_default_client_directory, install_client,
+    install_server, ClientInstallation, Installation, LoaderVersion, MinecraftVersion,
+    ServerInstallation,
 };
 
 pub fn run(client: Client) -> Result<()> {
@@ -130,7 +130,7 @@ impl Application for State {
     fn new(client: Client) -> (Self, Command<Self::Message>) {
         (
             State {
-                client_location: installer::get_default_client_directory(),
+                client_location: get_default_client_directory(),
                 generate_profile: true,
                 server_location: std::env::current_dir().unwrap_or_default(),
                 download_server_jar: true,
@@ -139,7 +139,10 @@ impl Application for State {
                 ..Default::default()
             },
             Command::batch([
-                Command::perform(fetch_minecraft_versions(client.clone()), Message::SetMcVersions),
+                Command::perform(
+                    fetch_minecraft_versions(client.clone()),
+                    Message::SetMcVersions,
+                ),
                 Command::perform(fetch_loader_versions(client), Message::SetLoaderVersions),
             ]),
         )
@@ -301,16 +304,13 @@ impl Application for State {
                 }
             }
             Message::Error(error) => {
-                self.progress = 0.0;
-
+                eprintln!("{error:?}");
                 MessageDialog::new()
                     .set_title("Quilt Installer Error")
-                    .set_text(format!("{error}").as_str())
+                    .set_text(&error.to_string())
                     .set_type(MessageType::Error)
                     .show_alert()
                     .unwrap();
-
-                eprintln!("{error:?}");
             }
         }
 
