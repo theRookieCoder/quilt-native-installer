@@ -44,8 +44,7 @@ fn create_icon() -> Result<Icon> {
     let mut buffer = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buffer)?;
     let bytes = &buffer[..info.buffer_size()];
-    let icon = Icon::from_rgba(bytes.to_vec(), info.width, info.height)?;
-    Ok(icon)
+    Ok(Icon::from_rgba(bytes.to_vec(), info.width, info.height)?)
 }
 
 #[derive(Debug, Default)]
@@ -75,6 +74,7 @@ struct State {
     is_installing: bool,
     progress: f32,
 
+    // HTTP reqwest client
     client: Client,
 }
 
@@ -287,7 +287,7 @@ impl Application for State {
                                         .into()
                                 }
                             },
-                            install_location: self.server_location.clone(),
+                            install_dir: self.server_location.clone(),
                             download_jar: self.download_server_jar,
                             generate_script: self.generate_launch_script,
                         }),

@@ -1,4 +1,6 @@
-use crate::installer::{self, ClientInstallation, LoaderVersion, MinecraftVersion};
+use crate::installer::{
+    self, ClientInstallation, LoaderVersion, MinecraftVersion, ServerInstallation,
+};
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use reqwest::Client;
@@ -10,39 +12,59 @@ use std::path::PathBuf;
 pub struct Args {
     #[clap(subcommand)]
     pub subcommand: Option<Subcommands>,
+    /// The Minecraft version to install
+    ///
+    /// Pick between the
+    /// latest `stable` version (default),
+    /// latest `snapshot`,
+    /// or a specific version number.
     #[arg(short = 'm', long)]
     minecraft_version: Option<String>,
+    /// The Quilt loader version to install
+    ///
+    /// Pick between the
+    /// latest `stable` version (default),
+    /// latest `beta`,
+    /// or a specific version number.
     #[arg(short = 'l', long)]
     loader_version: Option<String>,
 }
 
 #[derive(Subcommand)]
 pub enum Subcommands {
+    /// Install the Quilt Loader client
     Client {
-        #[arg(short, long, default_value_t = false)]
-        profile: bool,
+        /// Don't create a profile
+        #[arg(short = 'p', long)]
+        no_profile: bool,
+        /// The directory to install to
         #[arg(short = 'o', long)]
         install_dir: Option<PathBuf>,
     },
     Server {
-        #[arg(short = 's', long)]
-        create_scripts: bool,
-        #[arg(short, long)]
-        download_server: bool,
+        /// Create launch scripts
+        #[arg(short = 's', long, default_value_t = true)]
+        generate_script: bool,
+        /// Download the server jar
+        #[arg(short, long, default_value_t = true)]
+        download_jar: bool,
+        /// The directory to install to
         #[arg(short = 'o', long)]
         install_dir: PathBuf,
     },
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub enum MCVersionCLI {
+    #[default]
     Stable,
     Snapshot,
     Custom(String),
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub enum LoaderVersionCLI {
+    #[default]
     Stable,
     Beta,
     Custom(String),
@@ -57,7 +79,7 @@ impl From<Option<String>> for MCVersionCLI {
                 _ => Self::Custom(s),
             }
         } else {
-            Self::Stable
+            Self::default()
         }
     }
 }
@@ -71,7 +93,7 @@ impl From<Option<String>> for LoaderVersionCLI {
                 _ => Self::Custom(s),
             }
         } else {
-            Self::Stable
+            Self::default()
         }
     }
 }
@@ -86,7 +108,7 @@ pub async fn cli(client: Client, args: Args) -> anyhow::Result<()> {
 
     match args.subcommand.unwrap() {
         Subcommands::Client {
-            profile,
+            no_profile,
             install_dir,
         } => {
             installer::install_client(
@@ -96,12 +118,25 @@ pub async fn cli(client: Client, args: Args) -> anyhow::Result<()> {
                     loader_version,
                     install_dir: install_dir
                         .unwrap_or_else(installer::get_default_client_directory),
-                    generate_profile: profile,
+                    generate_profile: !no_profile,
                 },
             )
             .await
         }
-        Subcommands::Server { .. } => unimplemented!(),
+        Subcommands::Server {
+            generate_script,
+            download_jar,
+            install_dir,
+        } => {
+            installer::install_server(ServerInstallation {
+                minecraft_version,
+                loader_version,
+                install_dir,
+                download_jar,
+                generate_script,
+            })
+            .await
+        }
     }
 }
 
