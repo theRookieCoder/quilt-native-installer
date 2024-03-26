@@ -6,12 +6,13 @@ use anyhow::{anyhow, Error, Result};
 use iced::widget::{
     Button, Checkbox, Column, PickList, ProgressBar, Radio, Row, Rule, Space, Text, TextInput,
 };
+use iced::Size;
 use iced::{
     alignment::Horizontal, executor, window, Application, Command, Element, Length, Settings, Theme,
 };
-use native_dialog::{FileDialog, MessageDialog, MessageType};
 use png::Transformations;
 use reqwest::Client;
+use rfd::{FileDialog, MessageDialog, MessageLevel};
 
 use crate::installer::{
     fetch_loader_versions, fetch_minecraft_versions, get_default_client_directory, install_client,
@@ -22,7 +23,7 @@ use crate::installer::{
 pub fn run(client: Client) -> Result<()> {
     State::run(Settings {
         window: window::Settings {
-            size: (600, 300),
+            size: Size::new(600., 300.),
             resizable: false,
             icon: Some(create_icon()?),
             ..Default::default()
@@ -121,11 +122,12 @@ impl Application for State {
     type Theme = Theme;
 
     fn theme(&self) -> Self::Theme {
-        use dark_light::Mode;
-        match dark_light::detect() {
-            Mode::Light => Theme::Light,
-            Mode::Dark | Mode::Default => Theme::Dark,
-        }
+        // use dark_light::Mode;
+        // match dark_light::detect() {
+        //     Mode::Light => Theme::Light,
+        //     Mode::Dark | Mode::Default => Theme::Dark,
+        // }
+        Theme::Dracula
     }
 
     fn new(client: Client) -> (Self, Command<Self::Message>) {
@@ -216,30 +218,25 @@ impl Application for State {
             }
             Message::BrowseClientLocation => {
                 let mut dialog = FileDialog::new();
-                let working_dir = std::env::current_dir();
                 if self.client_location.is_dir() {
-                    dialog = dialog.set_location(&self.client_location);
-                } else if let Ok(working_dir) = &working_dir {
-                    dialog = dialog.set_location(working_dir)
+                    dialog = dialog.set_directory(&self.client_location);
+                } else if let Ok(working_dir) = &std::env::current_dir() {
+                    dialog = dialog.set_directory(working_dir)
                 }
-                match dialog.show_open_single_dir() {
-                    Ok(Some(path)) => self.client_location = path,
-                    Ok(None) => (),
-                    Err(error) => return Message::Error(error.into()).into(),
+                if let Some(path) = dialog.pick_folder() {
+                    self.client_location = path;
                 }
             }
             Message::BrowseServerLocation => {
                 let mut dialog = FileDialog::new();
-                let working_dir = std::env::current_dir();
                 if self.client_location.is_dir() {
-                    dialog = dialog.set_location(&self.server_location);
-                } else if let Ok(working_dir) = &working_dir {
-                    dialog = dialog.set_location(working_dir)
+                    dialog = dialog.set_directory(&self.server_location);
+                } else if let Ok(working_dir) = &std::env::current_dir() {
+                    dialog = dialog.set_directory(working_dir)
                 }
-                match dialog.show_open_single_dir() {
-                    Ok(Some(path)) => self.server_location = path,
-                    Ok(None) => (),
-                    Err(error) => return Message::Error(error.into()).into(),
+
+                if let Some(path) = dialog.pick_folder() {
+                    self.server_location = path;
                 }
             }
             Message::Install => {
@@ -318,10 +315,9 @@ impl Application for State {
                 eprintln!("{error:?}");
                 MessageDialog::new()
                     .set_title("Quilt Installer Error")
-                    .set_text(&error.to_string())
-                    .set_type(MessageType::Error)
-                    .show_alert()
-                    .unwrap();
+                    .set_description(error.to_string())
+                    .set_level(MessageLevel::Error)
+                    .show();
             }
         }
 
@@ -362,11 +358,10 @@ impl Application for State {
             Interaction::SelectMcVersion,
         )
         .width(200);
-        let enable_snapshots = Checkbox::new(
-            "Show snapshots",
-            self.show_snapshots,
-            Interaction::SetShowSnapshots,
-        );
+        let mut enable_snapshots = Checkbox::new("Show snapshots", self.show_snapshots);
+        if !self.is_installing {
+            enable_snapshots = enable_snapshots.on_toggle(Interaction::SetShowSnapshots);
+        }
         let mc_row = Row::new()
             .push(minecraft_version_label)
             .push(minecraft_version_list)
@@ -388,7 +383,10 @@ impl Application for State {
             Interaction::SelectLoaderVersion,
         )
         .width(200);
-        let enable_betas = Checkbox::new("Show betas", self.show_betas, Interaction::SetShowBetas);
+        let mut enable_betas = Checkbox::new("Show betas", self.show_betas);
+        if !self.is_installing {
+            enable_betas = enable_betas.on_toggle(Interaction::SetShowBetas);
+        }
         let loader_row = Row::new()
             .push(loader_version_label)
             .push(loader_version_list)
@@ -419,11 +417,11 @@ impl Application for State {
             .padding(5);
 
         let client_options_label = Text::new("Options:").width(140);
-        let create_profile = Checkbox::new(
-            "Generate profile",
-            self.generate_profile,
-            Interaction::GenerateProfile,
-        );
+
+        let mut create_profile = Checkbox::new("Generate profile", self.generate_profile);
+        if !self.is_installing {
+            create_profile = create_profile.on_toggle(Interaction::GenerateProfile);
+        }
         let client_options_row = Row::new()
             .push(client_options_label)
             .push(create_profile)
@@ -451,16 +449,17 @@ impl Application for State {
             .padding(5);
 
         let server_options_label = Text::new("Options:").width(140);
-        let download_server_jar = Checkbox::new(
-            "Download server jar",
-            self.download_server_jar,
-            Interaction::DownloadServerJar,
-        );
-        let generate_launch_script = Checkbox::new(
-            "Generate launch script",
-            self.generate_launch_script,
-            Interaction::GenerateLaunchScript,
-        );
+        let mut download_server_jar =
+            Checkbox::new("Download server jar", self.download_server_jar);
+        if !self.is_installing {
+            download_server_jar = download_server_jar.on_toggle(Interaction::DownloadServerJar);
+        }
+        let mut generate_launch_script =
+            Checkbox::new("Generate launch script", self.generate_launch_script);
+        if !self.is_installing {
+            generate_launch_script =
+                generate_launch_script.on_toggle(Interaction::GenerateLaunchScript);
+        }
         let server_options_row = Row::new()
             .push(server_options_label)
             .push(download_server_jar)

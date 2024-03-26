@@ -9,23 +9,22 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-base64 = "0.21"
+base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4.4", features = ["derive"] }
-dark-light = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+# dark-light = "1.0"
 derive_more = "0.99"
-iced = { version = "0.10", default-features = false, features = ["tokio"] }
-# TODO: if we keep using this lib into the future, maybe we just fork it as Quilt?
-native-dialog = { git = "https://github.com/TheGlitch76/native-dialog-rs", features = [
-    "windows_dpi_awareness",
-    "windows_visual_styles",
-] }
+iced = { version = "0.12", features = ["tokio"] }
 png = "0.17"
-reqwest = { version = "0.11", features = ["blocking", "json"] }
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+rfd = { version = "0.14", default-features = false, features = [
+    "xdg-portal",
+    "tokio",
+] }
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = "1.35"
+tokio = "1.36"
 
 [profile.release]
 codegen-units = 1
