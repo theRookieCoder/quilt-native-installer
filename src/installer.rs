@@ -46,6 +46,7 @@ impl std::fmt::Display for ClientInstallation {
 }
 
 #[derive(Debug, Clone)]
+#[expect(dead_code)]
 pub struct ServerInstallation {
     pub minecraft_version: MinecraftVersion,
     pub loader_version: LoaderVersion,
@@ -55,14 +56,14 @@ pub struct ServerInstallation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, derive_more::Display)]
-#[display(fmt = "{}", version)]
+#[display("{}", version)]
 pub struct MinecraftVersion {
     pub version: String,
     pub stable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, derive_more::Display)]
-#[display(fmt = "{}", version)]
+#[display("{}", version)]
 pub struct LoaderVersion {
     pub separator: char,
     pub build: u32,

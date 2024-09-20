@@ -4,12 +4,9 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Error, Result};
 use iced::widget::{
-    Button, Checkbox, Column, PickList, ProgressBar, Radio, Row, Rule, Space, Text, TextInput,
+    column, row, Button, Checkbox, PickList, ProgressBar, Radio, Rule, Space, Text, TextInput,
 };
-use iced::Size;
-use iced::{
-    alignment::Horizontal, executor, window, Application, Command, Element, Length, Settings, Theme,
-};
+use iced::{alignment::Horizontal, window, Element, Length, Size, Task, Theme};
 use png::Transformations;
 use reqwest::Client;
 use rfd::{FileDialog, MessageDialog, MessageLevel};
@@ -21,16 +18,15 @@ use crate::installer::{
 };
 
 pub fn run(client: Client) -> Result<()> {
-    State::run(Settings {
-        window: window::Settings {
+    iced::application(App::title, App::update, App::view)
+        .window(window::Settings {
             size: Size::new(600., 300.),
             resizable: false,
             icon: Some(create_icon()?),
             ..Default::default()
-        },
-        flags: client,
-        ..Default::default()
-    })?;
+        })
+        .theme(|_| Theme::Dracula)
+        .run_with(|| App::new(client))?;
 
     Ok(())
 }
@@ -50,7 +46,7 @@ fn create_icon() -> Result<window::Icon> {
 }
 
 #[derive(Debug, Default)]
-struct State {
+struct App {
     // Minecraft version picker
     minecraft_versions: Vec<MinecraftVersion>,
     selected_minecraft_version: Option<MinecraftVersion>,
@@ -109,30 +105,16 @@ enum Interaction {
     DownloadServerJar(bool),
 }
 
-impl From<Message> for Command<Message> {
+impl From<Message> for Task<Message> {
     fn from(m: Message) -> Self {
         Self::perform(async { m }, |t| t)
     }
 }
 
-impl Application for State {
-    type Message = Message;
-    type Executor = executor::Default;
-    type Flags = Client;
-    type Theme = Theme;
-
-    fn theme(&self) -> Self::Theme {
-        // use dark_light::Mode;
-        // match dark_light::detect() {
-        //     Mode::Light => Theme::Light,
-        //     Mode::Dark | Mode::Default => Theme::Dark,
-        // }
-        Theme::Dracula
-    }
-
-    fn new(client: Client) -> (Self, Command<Self::Message>) {
+impl App {
+    fn new(client: Client) -> (Self, Task<Message>) {
         (
-            State {
+            App {
                 client_location: get_default_client_directory(),
                 generate_profile: true,
                 server_location: std::env::current_dir().unwrap_or_default(),
@@ -141,12 +123,12 @@ impl Application for State {
                 client: client.clone(),
                 ..Default::default()
             },
-            Command::batch([
-                Command::perform(
+            Task::batch([
+                Task::perform(
                     fetch_minecraft_versions(client.clone()),
                     Message::SetMcVersions,
                 ),
-                Command::perform(fetch_loader_versions(client), Message::SetLoaderVersions),
+                Task::perform(fetch_loader_versions(client), Message::SetLoaderVersions),
             ]),
         )
     }
@@ -155,7 +137,7 @@ impl Application for State {
         "Quilt Installer".into()
     }
 
-    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Interaction(interaction) => match interaction {
                 Interaction::ChangeClientLocation(location) => {
@@ -244,7 +226,7 @@ impl Application for State {
                 self.progress = 0.0;
 
                 return match self.installation_type {
-                    Installation::Client => Command::perform(
+                    Installation::Client => Task::perform(
                         install_client(
                             self.client.clone(),
                             ClientInstallation {
@@ -272,7 +254,7 @@ impl Application for State {
                         ),
                         Message::DoneInstalling,
                     ),
-                    Installation::Server => Command::perform(
+                    Installation::Server => Task::perform(
                         install_server(
                             self.client.clone(),
                             ServerInstallation {
@@ -321,10 +303,10 @@ impl Application for State {
             }
         }
 
-        Command::none()
+        Task::none()
     }
 
-    fn view(&self) -> Element<'_, Self::Message> {
+    fn view(&self) -> Element<'_, Message> {
         let installation_label = Text::new("Installation:").width(140);
         let installation_client = Radio::new(
             "Client",
@@ -338,10 +320,7 @@ impl Application for State {
             Some(self.installation_type),
             Interaction::SelectInstallation,
         );
-        let installation_row = Row::new()
-            .push(installation_label)
-            .push(installation_client)
-            .push(installation_server)
+        let installation_row = row![installation_label, installation_client, installation_server,]
             .width(Length::Fill)
             .spacing(50)
             .padding(5);
@@ -362,14 +341,15 @@ impl Application for State {
         if !self.is_installing {
             enable_snapshots = enable_snapshots.on_toggle(Interaction::SetShowSnapshots);
         }
-        let mc_row = Row::new()
-            .push(minecraft_version_label)
-            .push(minecraft_version_list)
-            .push(Space::new(20, 0))
-            .push(enable_snapshots)
-            .width(Length::Fill)
-            .spacing(5)
-            .padding(5);
+        let mc_row = row![
+            minecraft_version_label,
+            minecraft_version_list,
+            Space::new(20, 0),
+            enable_snapshots,
+        ]
+        .width(Length::Fill)
+        .spacing(5)
+        .padding(5);
 
         let loader_version_label = Text::new("Loader version:").width(140);
         let loader_version_list = PickList::new(
@@ -387,14 +367,15 @@ impl Application for State {
         if !self.is_installing {
             enable_betas = enable_betas.on_toggle(Interaction::SetShowBetas);
         }
-        let loader_row = Row::new()
-            .push(loader_version_label)
-            .push(loader_version_list)
-            .push(Space::new(20, 0))
-            .push(enable_betas)
-            .width(Length::Fill)
-            .spacing(5)
-            .padding(5);
+        let loader_row = row![
+            loader_version_label,
+            loader_version_list,
+            Space::new(20, 0),
+            enable_betas,
+        ]
+        .width(Length::Fill)
+        .spacing(5)
+        .padding(5);
 
         let client_location_label = Text::new("Directory:").width(140);
         let mut client_location_input = TextInput::new(
@@ -406,15 +387,16 @@ impl Application for State {
             client_location_input =
                 client_location_input.on_input(Interaction::ChangeClientLocation);
         }
-        let client_loction_browse =
+        let client_location_browse =
             Button::new(Text::new("Browse...")).on_press(Interaction::BrowseClientLocation);
-        let client_location_row = Row::new()
-            .push(client_location_label)
-            .push(client_location_input)
-            .push(client_loction_browse)
-            .width(Length::Fill)
-            .spacing(5)
-            .padding(5);
+        let client_location_row = row![
+            client_location_label,
+            client_location_input,
+            client_location_browse
+        ]
+        .width(Length::Fill)
+        .spacing(5)
+        .padding(5);
 
         let client_options_label = Text::new("Options:").width(140);
 
@@ -422,9 +404,7 @@ impl Application for State {
         if !self.is_installing {
             create_profile = create_profile.on_toggle(Interaction::GenerateProfile);
         }
-        let client_options_row = Row::new()
-            .push(client_options_label)
-            .push(create_profile)
+        let client_options_row = row![client_options_label, create_profile,]
             .spacing(5)
             .padding(5);
 
@@ -440,13 +420,14 @@ impl Application for State {
         }
         let server_loction_browse =
             Button::new(Text::new("Browse...")).on_press(Interaction::BrowseServerLocation);
-        let server_location_row = Row::new()
-            .push(server_location_label)
-            .push(server_location_input)
-            .push(server_loction_browse)
-            .width(Length::Fill)
-            .spacing(5)
-            .padding(5);
+        let server_location_row = row![
+            server_location_label,
+            server_location_input,
+            server_loction_browse,
+        ]
+        .width(Length::Fill)
+        .spacing(5)
+        .padding(5);
 
         let server_options_label = Text::new("Options:").width(140);
         let mut download_server_jar =
@@ -460,21 +441,18 @@ impl Application for State {
             generate_launch_script =
                 generate_launch_script.on_toggle(Interaction::GenerateLaunchScript);
         }
-        let server_options_row = Row::new()
-            .push(server_options_label)
-            .push(download_server_jar)
-            .push(Space::new(35, 0))
-            .push(generate_launch_script)
-            .spacing(5)
-            .padding(5);
+        let server_options_row = row![
+            server_options_label,
+            download_server_jar,
+            Space::new(35, 0),
+            generate_launch_script,
+        ]
+        .spacing(5)
+        .padding(5);
 
-        let mut column = Column::new()
+        let mut column = column![installation_row, mc_row, loader_row, Rule::horizontal(5),]
             .padding(5)
-            .spacing(5)
-            .push(installation_row)
-            .push(mc_row)
-            .push(loader_row)
-            .push(Rule::horizontal(5));
+            .spacing(5);
 
         column = match self.installation_type {
             Installation::Client => column.push(client_location_row).push(client_options_row),
@@ -482,7 +460,7 @@ impl Application for State {
         };
 
         let button_label = Text::new("Install")
-            .horizontal_alignment(Horizontal::Center)
+            .align_x(Horizontal::Center)
             .width(Length::Fill);
         let mut button = Button::new(button_label).width(Length::Fill);
         if !self.is_installing {
